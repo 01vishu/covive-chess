@@ -2,19 +2,29 @@
 
 import Button from "@/app/components/Button";
 import Input from "@/app/components/inputs/Input";
-import { useCallback, useState } from "react";
-import { FieldValues, useForm } from "react-hook-form";
+import { useCallback, useEffect, useState } from "react";
+import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import AuthSocialButton from "./AuthSocialButton";
 import { BsGithub, BsGoogle } from "react-icons/bs";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+import axios from "axios";
+import { signIn, useSession } from "next-auth/react";
 type VARIENT = "LOGIN" | "REGISTER";
 const AuthForm = () => {
   const [varient, setVarient] = useState<VARIENT>("LOGIN");
   const [isLoading, setIsLoading] = useState(false);
-
+  const session = useSession();
+  const router = useRouter();
   const toggleVarient = useCallback(() => {
     if (varient === "LOGIN") setVarient("REGISTER");
     else setVarient("LOGIN");
   }, [varient]);
+  useEffect(() => {
+    if (session?.status === "authenticated") {
+      router.push("/play");
+    }
+  }, [session?.status, router]);
 
   const {
     register,
@@ -27,9 +37,39 @@ const AuthForm = () => {
       password: "",
     },
   });
+  const onSubmit: SubmitHandler<FieldValues> = (data) => {
+    setIsLoading(true);
+    if (varient === "REGISTER") {
+      axios
+        .post("/api/register", data)
+        .then(() => signIn("credentials", data))
+        .catch(() => toast.error("Somthing went worng!"))
+        .finally(() => setIsLoading(false));
+    }
+    if (varient === "LOGIN") {
+      // NextAuth SignIn
+      signIn("credentials", {
+        ...data,
+        redirect: false,
+      })
+        .then((callback) => {
+          if (callback?.error) {
+            toast.error("Invalid credentials");
+          }
+          if (callback?.ok && !callback?.error) {
+            toast.success("Logged In!");
+            router.push("/play");
+          }
+        })
+        .finally(() => setIsLoading(false));
+    }
+  };
   return (
     <div className="w-full ">
-      <form className="flex flex-col py-8 px-4 space-y-4 ">
+      <form
+        className="flex flex-col py-8 px-4 space-y-4 "
+        onSubmit={handleSubmit(onSubmit)}
+      >
         {varient === "REGISTER" && (
           <Input
             id="username"
